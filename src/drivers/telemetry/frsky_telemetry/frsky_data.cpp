@@ -57,6 +57,7 @@
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/airspeed.h>
 
 #include <drivers/drv_hrt.h>
 
@@ -68,6 +69,7 @@ struct frsky_subscription_data_s {
 	struct sensor_combined_s sensor_combined;
 	struct vehicle_air_data_s airdata;
 	struct vehicle_gps_position_s vehicle_gps_position;
+	struct airspeed_s airspeed;
 	uint8_t current_flight_mode; // == vehicle_status.nav_state
 
 	int battery_status_sub;
@@ -76,6 +78,7 @@ struct frsky_subscription_data_s {
 	int sensor_sub;
 	int vehicle_gps_position_sub;
 	int vehicle_status_sub;
+	int airspeed_sub;
 };
 
 static struct frsky_subscription_data_s *subscription_data = NULL;
@@ -97,6 +100,7 @@ bool frsky_init()
 	subscription_data->sensor_sub = orb_subscribe(ORB_ID(sensor_combined));
 	subscription_data->vehicle_gps_position_sub = orb_subscribe(ORB_ID(vehicle_gps_position));
 	subscription_data->vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
+	subscription_data->airspeed_sub = orb_subscribe(ORB_ID(airspeed));
 	return true;
 }
 
@@ -108,6 +112,7 @@ void frsky_deinit()
 		orb_unsubscribe(subscription_data->sensor_sub);
 		orb_unsubscribe(subscription_data->vehicle_gps_position_sub);
 		orb_unsubscribe(subscription_data->vehicle_status_sub);
+		orb_unsubscribe(subscription_data->airspeed_sub);
 		free(subscription_data);
 		subscription_data = NULL;
 	}
@@ -207,6 +212,13 @@ void frsky_update_topics()
 	if (updated) {
 		orb_copy(ORB_ID(vehicle_gps_position), subs->vehicle_gps_position_sub, &subs->vehicle_gps_position);
 	}
+
+	/* get a local copy of the airspeed data */
+	orb_check(subs->airspeed_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(airspeed), subs->airspeed_sub, &subs->airspeed);
+	}
 }
 
 /**
@@ -257,6 +269,7 @@ void frsky_send_frame2(int uart)
 	struct vehicle_global_position_s *global_pos = &subscription_data->global_pos;
 	struct battery_status_s *battery_status = &subscription_data->battery_status;
 	struct vehicle_gps_position_s *gps = &subscription_data->vehicle_gps_position;
+	struct airspeed_s *airspeed = &subscription_data->airspeed;
 	/* send formatted frame */
 	float course = 0, lat = 0, lon = 0, speed = 0, alt = 0;
 	char lat_ns = 0, lon_ew = 0;
@@ -273,8 +286,9 @@ void frsky_send_frame2(int uart)
 		lat_ns = (global_pos->lat < 0) ? 'S' : 'N';
 		lon    = frsky_format_gps(fabsf(global_pos->lon));
 		lon_ew = (global_pos->lon < 0) ? 'W' : 'E';
-		speed  = sqrtf(global_pos->vel_n * global_pos->vel_n + global_pos->vel_e * global_pos->vel_e)
-			 * 25.0f / 46.0f;
+		// speed  = sqrtf(global_pos->vel_n * global_pos->vel_n + global_pos->vel_e * global_pos->vel_e)
+		// 	 * 25.0f / 46.0f;
+		speed = airspeed->true_airspeed_m_s;
 		alt    = global_pos->alt;
 	}
 
