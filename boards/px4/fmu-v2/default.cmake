@@ -57,6 +57,7 @@ px4_add_board(
 		stm32/tone_alarm
 		#tap_esc
 		#telemetry # all available telemetry drivers
+		telemetry/frsky_telemetry
 		#test_ppm
 		#uavcan
 
